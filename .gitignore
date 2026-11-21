@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+media/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.secrets/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Generated and local files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
