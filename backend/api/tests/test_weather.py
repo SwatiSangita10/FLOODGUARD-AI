@@ -197,3 +197,58 @@ class WeatherStorageTests(SimpleTestCase):
         index_keys, index_options = INDEXES["weather_records"][0]
         self.assertEqual(index_options["name"], "coordinates_fetched_at")
         self.assertEqual([field for field, _ in index_keys], ["latitude", "longitude", "fetched_at"])
+
+
+class OpenMeteoRequestDiagnosticsTests(SimpleTestCase):
+    def _http_error(self, code):
+        from urllib.error import HTTPError
+
+        return HTTPError("https://api.open-meteo.com/v1/forecast", code, "err", {}, None)
+
+    def test_rate_limit_is_reported_and_not_retried(self):
+        from api.services.weather import _request_json
+
+        with patch("api.services.weather.urlopen", side_effect=self._http_error(429)) as opened:
+            with self.assertRaises(WeatherProviderError) as caught:
+                _request_json("https://api.open-meteo.com/v1/forecast", {"latitude": 1})
+        self.assertEqual(caught.exception.reason, "http_429")
+        self.assertEqual(opened.call_count, 1)
+
+    def test_server_errors_are_retried_once(self):
+        from api.services.weather import _request_json
+
+        with patch("api.services.weather.time.sleep"), patch(
+            "api.services.weather.urlopen", side_effect=self._http_error(503)
+        ) as opened:
+            with self.assertRaises(WeatherProviderError) as caught:
+                _request_json("https://api.open-meteo.com/v1/forecast", {"latitude": 1})
+        self.assertEqual(caught.exception.reason, "http_503")
+        self.assertEqual(opened.call_count, 2)
+
+    def test_validation_failure_names_the_missing_field(self):
+        from api.services.weather import _validate_weather_payload
+
+        payload = provider_payload()
+        del payload["hourly"]["precipitation_probability"]
+        with self.assertRaises(WeatherProviderError) as caught:
+            _validate_weather_payload(payload)
+        self.assertIn("precipitation_probability", caught.exception.reason)
+
+    def test_weather_endpoint_returns_the_reason_without_fake_data(self):
+        with patch("api.weather_views.fetch_weather", side_effect=WeatherProviderError("http_429")):
+            response = APIClient().get("/api/weather/?latitude=20.27&longitude=85.84")
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.data["reason"], "http_429")
+        self.assertNotIn("weather", response.data)
+
+    def test_api_key_switches_to_the_commercial_endpoint(self):
+        from api.services.weather import _request_json
+
+        with patch.dict("os.environ", {"OPEN_METEO_API_KEY": "k"}), patch(
+            "api.services.weather.urlopen", side_effect=TimeoutError
+        ) as opened, patch("api.services.weather.time.sleep"):
+            with self.assertRaises(WeatherProviderError):
+                _request_json("https://api.open-meteo.com/v1/forecast", {"latitude": 1})
+        requested_url = opened.call_args[0][0].full_url
+        self.assertTrue(requested_url.startswith("https://customer-api.open-meteo.com/"))
+        self.assertIn("apikey=k", requested_url)

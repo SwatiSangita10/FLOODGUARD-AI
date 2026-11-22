@@ -21,10 +21,11 @@ class WeatherView(APIView):
                 params["longitude"],
                 timezone_name=params.get("timezone"),
             )
-        except WeatherProviderError:
+        except WeatherProviderError as exc:
             return Response(
                 {
                     "error": "weather_provider_unavailable",
+                    "reason": exc.reason,
                     "detail": "Open-Meteo did not return a valid weather response. Please retry shortly.",
                 },
                 status=502,
@@ -61,10 +62,11 @@ class WeatherLocationSearchView(APIView):
         serializer.is_valid(raise_exception=True)
         try:
             results = search_locations(serializer.validated_data["q"])
-        except WeatherProviderError:
+        except WeatherProviderError as exc:
             return Response(
                 {
                     "error": "geocoding_provider_unavailable",
+                    "reason": exc.reason,
                     "detail": "The location search service is temporarily unavailable.",
                 },
                 status=502,

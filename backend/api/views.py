@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from database.mongodb import (
     MongoDBConfigurationError,
     check_mongodb_and_prepare_schema,
+    classify_mongodb_error,
     configured_database_name,
 )
 
@@ -28,20 +29,22 @@ class DatabaseHealthCheckView(APIView):
     def get(self, request):
         try:
             database = check_mongodb_and_prepare_schema()
-        except MongoDBConfigurationError:
+        except MongoDBConfigurationError as exc:
             return Response(
                 {
                     "status": "unavailable",
                     "database": configured_database_name(),
+                    "reason": exc.reason,
                     "message": "MongoDB settings are missing or invalid.",
                 },
                 status=503,
             )
-        except PyMongoError:
+        except PyMongoError as exc:
             return Response(
                 {
                     "status": "unavailable",
                     "database": configured_database_name(),
+                    "reason": classify_mongodb_error(exc),
                     "message": "MongoDB is unreachable or database initialization failed.",
                 },
                 status=503,
