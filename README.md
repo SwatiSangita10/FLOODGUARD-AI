@@ -92,6 +92,8 @@ Remove-Item Env:MONGODB_URI, Env:MONGODB_DATABASE -ErrorAction SilentlyContinue
 
 The backend CORS allowlist defaults to `http://localhost:5173` and `http://127.0.0.1:5173` for local development; set `CORS_ALLOWED_ORIGINS` to a comma-separated list to change it. Do not use these local origins in production. Django's SQLite database remains only for framework defaults; application data is accessed through PyMongo.
 
+MongoDB uses `MONGODB_DATABASE` when it is set. Otherwise, the backend uses the database name in the path portion of `MONGODB_URI` (for example, `/floodguard_ai`). If the URI has no database path, set `MONGODB_DATABASE` explicitly.
+
 ### Production environment
 
 Set production values in the hosting platform's environment or secrets manager. Do not copy a developer `.env` file into a production image. The process environment takes precedence over `backend/.env`.

@@ -2,6 +2,7 @@
 import atexit
 import os
 from threading import Lock
+from urllib.parse import unquote, urlsplit
 
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
@@ -19,7 +20,29 @@ class MongoDBConfigurationError(Exception):
 
 
 def configured_database_name():
-    return os.environ.get("MONGODB_DATABASE", "").strip() or None
+    configured_name = os.environ.get("MONGODB_DATABASE", "").strip()
+    if configured_name:
+        return configured_name
+
+    uri = os.environ.get("MONGODB_URI", "").strip()
+    if not uri:
+        return None
+
+    try:
+        parsed_uri = urlsplit(uri)
+    except ValueError:
+        return None
+
+    if parsed_uri.scheme not in {"mongodb", "mongodb+srv"}:
+        return None
+
+    database_path = (
+        parsed_uri.path[1:]
+        if parsed_uri.path.startswith("/")
+        else parsed_uri.path
+    )
+    uri_database_name = unquote(database_path)
+    return uri_database_name or None
 
 
 def get_mongodb_client():
